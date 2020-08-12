@@ -122,18 +122,18 @@ class Backend:
     refresh_freq = 1/30
 
     def __init__(self):
-        self.camera = cv2.VideoCapture(0, cv2.CAP_DSHOW)
+        self.camera = cv2.VideoCapture(0, cv2.CAP_DSHOW) if os.name == "nt" else cv2.VideoCapture(0)
         
         width  = self.camera.get(3) # float
         height = self.camera.get(4) # float
+        print("Camera", self.camera, "at res", width, "*", height)
 
         cnv_lastfr.config(width=width, height=height)
-
 
         self.curr_d = None        
         self.curr_folder = None
         self.last_ts = None
-        pass
+        
 
     def on_closing(self):
         root.destroy()
