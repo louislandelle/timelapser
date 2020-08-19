@@ -5,7 +5,7 @@ import tkinter as tk
 import tkinter.ttk as ttk
 from tkinter import filedialog
 from PIL import Image, ImageTk
-import tovid
+import util
 
 root = tk.Tk()
 
@@ -35,26 +35,24 @@ lbl_config.pack(pady=10)
 lbl_camres = ttk.Label(frame_config, text="Camera resolution")
 var_camres = tk.StringVar()
 cbb_camres = ttk.Combobox(frame_config, textvariable=var_camres)
-cbb_camres['values'] = ("660x480", "800x600", "1920x1080")
-cbb_camres.current(0)
 lbl_camres.pack(pady=10)
 cbb_camres.pack()
 
 ttk.Separator(frame_config, orient=tk.HORIZONTAL).pack(pady=20, fill=tk.BOTH)
 
 # Saved images format
-lbl_imgfmt = ttk.Label(frame_config, text="Images format")
+lbl_imgfmt = ttk.Label(frame_config, text="Frame compression")
 var_imgfmt = tk.StringVar()
 cbb_imgfmt = ttk.Combobox(frame_config, textvariable=var_imgfmt)
-cbb_imgfmt['values'] = ("PNG", "JPEG (quality 50)", "JPEG (quality 95) - default", "JPEG (quality 100)")
-cbb_imgfmt.current(0)
+cbb_imgfmt['values'] = ("PNG", "JPEG (quality 50) - default", "JPEG (quality 95)", "JPEG (quality 100)")
+cbb_imgfmt.current(1)
 lbl_imgfmt.pack(pady=10)
 cbb_imgfmt.pack()
 
 ttk.Separator(frame_config, orient=tk.HORIZONTAL).pack(pady=20, fill=tk.BOTH)
 
 # Video saved format
-
+#TODO?
 
 # Snap period
 lbl_period = ttk.Label(frame_config, text="Take frame each seconds =")
@@ -90,15 +88,18 @@ var_savevid_fps.set(30)
 
 lbl_savevid_fps = ttk.Label(frame_config, text="FPS =")
 
+btn_savevid_now = ttk.Button(frame_config, text="Save video now")
+
 def on_ckb_savevid():
     sbx_savevid.configure(state="enabled" if "selected" in ckb_savevid.state() else "disabled")
-    ckb_savevid_delframes.configure(state="enabled" if "selected" in ckb_savevid.state() else "disabled")
+    #ckb_savevid_delframes.configure(state="enabled" if "selected" in ckb_savevid.state() else "disabled")
 ckb_savevid = ttk.Checkbutton(frame_config, text="Make avi when hour =", command=on_ckb_savevid)
 ckb_savevid_delframes = ttk.Checkbutton(frame_config, text="Delete images afterwards")
 ckb_savevid.invoke()
 ckb_savevid_delframes.invoke()
 ckb_savevid.pack()
 sbx_savevid.pack()
+btn_savevid_now.pack()
 lbl_savevid_fps.pack()
 sbx_savevid_fps.pack()
 ckb_savevid_delframes.pack()
@@ -148,17 +149,18 @@ class Backend:
 
     def __init__(self):
         self.camera = cv2.VideoCapture(0, cv2.CAP_DSHOW) if os.name == "nt" else cv2.VideoCapture(0)
-        
-        width  = self.camera.get(3) # float
-        height = self.camera.get(4) # float
+
+        width  = int(self.camera.get(3)) # float
+        height = int(self.camera.get(4)) # float
         print("Camera", self.camera, "at res", width, "*", height)
+        cbb_camres["values"] = str(width) + "x" + str(height) + "\ -\ default"
+        cbb_camres.current(0)
 
         cnv_lastfr.config(width=width, height=height)
 
-        self.curr_d = None        
+        self.curr_d = None
         self.curr_folder = None
         self.last_ts = None
-        
 
     def on_closing(self):
         root.destroy()
@@ -172,6 +174,13 @@ class Backend:
         lbl_filename["text"] = '/' + self.curr_folder.split('/')[-1]
         Path(self.curr_folder).mkdir(parents=True, exist_ok=True)
 
+    def save_video(self):
+        vid_fpath = '_'.join(str(x) for x in self.curr_d) + "_vid.avi"
+        print("Saving video as:", vid_fpath)
+        util.video_from(self.curr_folder, vid_fpath, var_savevid_fps.get())
+        if "selected" in ckb_savevid_delframes.state():
+            shutil.rmtree(self.curr_folder)
+
     def update(self):
         
         t = datetime.datetime.now()
@@ -183,22 +192,17 @@ class Backend:
         self.refresh_save_folder()
 
         _, self.last_img_arr = self.camera.read()
-        if not self.last_img_arr:
+        if self.last_img_arr is None:
             # Could not fetch image from webcam
             root.after(int(1 / Backend.refresh_freq), self.update)
             return
-
 
         t = datetime.datetime.now()
         period = var_period.get()
         if t.second %  (period if 0 < period <= 3600 else 30) == 0 and (not self.last_ts or self.last_ts.second != t.second):
 
             if "selected" in ckb_savevid.state() and t.second == 0 and t.minute == 0 and t.hour == int(var_savevid_h.get()):
-                vid_fpath = '_'.join(str(x) for x in self.curr_d) + "_vid.avi"
-                print("Saving video as:", vid_fpath)
-                tovid.video_from(self.curr_folder, vid_fpath, var_savevid_fps.get())
-                if "selected" in ckb_savevid_delframes.state():
-                    shutil.rmtree(self.curr_folder)
+                self.save_video()
 
             # Fetch compression paramters
             use_jpeg = not (cbb_imgfmt.get() == "PNG")
@@ -217,6 +221,7 @@ class Backend:
         root.after(int(1 / Backend.refresh_freq), self.update)
 
 be = Backend()
+btn_savevid_now.config(command=be.save_video)
 root.protocol("WM_DELETE_WINDOW", be.on_closing)
 root.after(int(1 / Backend.refresh_freq), be.update)
 root.mainloop()
