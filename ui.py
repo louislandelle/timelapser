@@ -30,7 +30,31 @@ cnv_lastfr.pack(fill=tk.BOTH, expand=True)
 lbl_config = ttk.Label(frame_config, text="Configuration")
 lbl_config.pack(pady=10)
 
+
+# Camera resolution
+lbl_camres = ttk.Label(frame_config, text="Camera resolution")
+var_camres = tk.StringVar()
+cbb_camres = ttk.Combobox(frame_config, textvariable=var_camres)
+cbb_camres['values'] = ("660x480", "800x600", "1920x1080")
+cbb_camres.current(0)
+lbl_camres.pack(pady=10)
+cbb_camres.pack()
+
 ttk.Separator(frame_config, orient=tk.HORIZONTAL).pack(pady=20, fill=tk.BOTH)
+
+# Saved images format
+lbl_imgfmt = ttk.Label(frame_config, text="Images format")
+var_imgfmt = tk.StringVar()
+cbb_imgfmt = ttk.Combobox(frame_config, textvariable=var_imgfmt)
+cbb_imgfmt['values'] = ("PNG", "JPEG (quality 50)", "JPEG (quality 95) - default", "JPEG (quality 100)")
+cbb_imgfmt.current(0)
+lbl_imgfmt.pack(pady=10)
+cbb_imgfmt.pack()
+
+ttk.Separator(frame_config, orient=tk.HORIZONTAL).pack(pady=20, fill=tk.BOTH)
+
+# Video saved format
+
 
 # Snap period
 lbl_period = ttk.Label(frame_config, text="Take frame each seconds =")
@@ -95,10 +119,11 @@ lbl_filename.pack(side=tk.LEFT, anchor=tk.W)
 
 def on_btn_change_daydirpath():
     folder_selected = filedialog.askdirectory()
-    ety_daydirpath.config(state="")
-    ety_daydirpath.delete(0,tk.END)
-    ety_daydirpath.insert(0, folder_selected)
-    ety_daydirpath.config(state="readonly")
+    if folder_selected:        
+        ety_daydirpath.config(state="")
+        ety_daydirpath.delete(0,tk.END)
+        ety_daydirpath.insert(0, folder_selected)
+        ety_daydirpath.config(state="readonly")
     
 btn_change_daydirpath = ttk.Button(frame_bottom, text="Browse...", command=on_btn_change_daydirpath)
 btn_change_daydirpath.pack(side=tk.LEFT, anchor=tk.W, padx=20)
@@ -129,7 +154,6 @@ class Backend:
 
         cnv_lastfr.config(width=width, height=height)
 
-
         self.curr_d = None        
         self.curr_folder = None
         self.last_ts = None
@@ -158,6 +182,12 @@ class Backend:
         self.refresh_save_folder()
 
         _, self.last_img_arr = self.camera.read()
+        if not self.last_img_arr:
+            # Could not fetch image from webcam
+            root.after(int(1 / Backend.refresh_freq), self.update)
+            return
+
+
         t = datetime.datetime.now()
         period = var_period.get()
         if t.second %  (period if 0 < period <= 3600 else 30) == 0 and (not self.last_ts or self.last_ts.second != t.second):
@@ -169,14 +199,19 @@ class Backend:
                 if "selected" in ckb_savevid_delframes.state():
                     shutil.rmtree(self.curr_folder)
 
-            fpath = self.curr_folder + '/' + '_'.join(str(_) for _ in (t.hour, t.minute, t.second)) + ".png"
-            lbl_lastts["text"] = "Last frame: " + fpath.split('/')[-1]
-            cv2.imwrite(fpath, self.last_img_arr)
+            # Fetch compression paramters
+            use_jpeg = not (cbb_imgfmt.get() == "PNG")
+            jpeg_quality = int(cbb_imgfmt.get().split("quality ")[1].split(")")[0]) if use_jpeg else None
 
+            # Compute path for next frame and save it using compression parameters
+            fpath = self.curr_folder + '/' + '_'.join(str(_) for _ in (t.hour, t.minute, t.second)) + (".png" if not use_jpeg else ".jpeg")
+            lbl_lastts["text"] = "Last frame: " + fpath.split('/')[-1]
+            cv2.imwrite(fpath, self.last_img_arr, [cv2.IMWRITE_JPEG_QUALITY, jpeg_quality] if use_jpeg else [])
+
+            # Load last frame and display it on canvas
             self.last_img = ImageTk.PhotoImage(image=Image.fromarray(self.last_img_arr[..., [2, 1, 0]]))
             cnv_lastfr.create_image(0, 0, image=self.last_img, anchor=tk.NW)
             self.last_ts = t
-
 
         root.after(int(1 / Backend.refresh_freq), self.update)
 
