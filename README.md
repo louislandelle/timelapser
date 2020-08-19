@@ -1,5 +1,7 @@
 # Timelapser
 
+![alt text](https://github.com/louislandelle/timelapser/blob/master/cover.png?raw=true)
+
 Timelapser is a lightweight user interface for saving webcam frames and timelapses written in python.
 
 ## Installation

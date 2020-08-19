@@ -2,3 +2,6 @@
 __pycache__/
 __pycache__/*
 *.avi
+.gitignore
+pres.psd
+pres.png
